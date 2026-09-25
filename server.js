@@ -11,6 +11,9 @@ const supabase = createClient(
 );
 const app = express();
 
+// URL фронтенда (добавь в .env и в переменные Render)
+const WEBAPP_URL = process.env.WEBAPP_URL || 'http://localhost:5173';
+
 app.use(cors());
 app.use(express.json());
 
@@ -33,7 +36,26 @@ function parseReelUrl(text) {
 // === КОМАНДЫ БОТА ===
 
 bot.command('start', async (ctx) => {
+  const param = ctx.match; // 'u123456' если пришли через ?startapp=
   const firstName = ctx.from.first_name;
+
+  // Если пришли по ссылке на профиль — сразу показываем кнопку открытия
+  if (param && /^u\d+$/.test(param)) {
+    const targetId = param.slice(1);
+    await ctx.reply(
+      `🎬 Тебе отправили профиль! Нажми кнопку ниже, чтобы открыть:`,
+      {
+        reply_markup: {
+          inline_keyboard: [[{
+            text: '👤 Открыть профиль',
+            web_app: { url: `${WEBAPP_URL}/?profileId=${targetId}` }
+          }]]
+        }
+      }
+    );
+    return;
+  }
+
   await ctx.reply(
     `Привет, ${firstName}! 🎬\n\n` +
     `Я ReelFlow — твоя личная копилка рилсов.\n\n` +
@@ -137,7 +159,7 @@ app.delete('/api/reels/:userId/:reelId', async (req, res) => {
   res.json({ success: true });
 });
 
-// Сохранить/обновить профиль (вызывает приложение при открытии)
+// Сохранить/обновить профиль
 app.post('/api/users/upsert', async (req, res) => {
   const { user_id, username, first_name, photo_url } = req.body || {};
   if (!user_id) return res.status(400).json({ error: 'user_id required' });
@@ -168,7 +190,7 @@ app.get('/api/users/:userId', async (req, res) => {
   });
 });
 
-// Список всех пользователей (вкладка «Люди»)
+// Список всех пользователей
 app.get('/api/explore', async (req, res) => {
   const { data: users, error } = await supabase
     .from('users').select('*')
